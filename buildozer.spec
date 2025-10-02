@@ -20,7 +20,7 @@ version = 1.0
 # (list) Application requirements
 # NOTE: including 'sarvamai' may require additional native recipes. If you face build errors,
 # remove sarvamai from requirements and instead upload to your server from the app (requests).
-requirements = python3,kivy,pyjnius,requests,sounddevice,soundfile,sarvamai
+requirements = python3,kivy,pyjnius,requests,sounddevice,soundfile
 
 # (str) Icon of the app
 icon.filename = %(source.dir)s/icon.png
