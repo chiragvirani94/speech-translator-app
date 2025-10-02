@@ -1,4 +1,4 @@
-name: Build Android APK (Buildozer - docker)
+name: Build Android APK (Buildozer - native)
 
 on:
   workflow_dispatch:
@@ -8,18 +8,61 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: ${{ github.workspace }}/android-sdk
+      PATH: ${{ github.workspace }}/android-sdk/cmdline-tools/latest/bin:${{ github.workspace }}/android-sdk/platform-tools:${{ github.workspace }}/.local/bin:${{ github.workspace }}/.local/lib/python3.8/site-packages:$PATH
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build with Buildozer (Docker container)
-        uses: docker://kivy/buildozer:python3
-        with:
-          entrypoint: /bin/sh
-          args: -c "pip install --upgrade buildozer cython && buildozer android clean || true && buildozer -v android debug || true && mkdir -p /github/workspace/apk_out && cp -v bin/*.apk /github/workspace/apk_out/ || true"
+      - name: Install system packages
+        run: |
+          sudo apt update
+          sudo apt install -y --no-install-recommends \
+            git python3-pip python3-setuptools python3-venv openjdk-11-jdk \
+            unzip zip wget libncurses5 libncurses5-dev libffi-dev libssl-dev \
+            libsqlite3-dev build-essential liblzma-dev libbz2-dev
 
-      - name: List produced files (debug)
-        run: ls -la apk_out || true
+      - name: Install pip tools
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install --upgrade cython buildozer
+
+      - name: Create local android sdk folder
+        run: |
+          mkdir -p android-sdk
+          # Download and install Android SDK command-line tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline.zip
+          unzip -q cmdline.zip -d android-sdk/cmdline-tools
+          mv android-sdk/cmdline-tools android-sdk/cmdline-tools/latest
+          rm cmdline.zip
+          yes | android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=${{ github.workspace }}/android-sdk "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653" "cmake;3.22.1" || true
+
+      - name: Ensure JAVA_HOME and PATH
+        run: |
+          echo "JAVA_HOME=$(dirname $(dirname $(readlink -f $(which javac))))" >> $GITHUB_ENV
+          echo "ANDROID_HOME=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
+
+      - name: Show versions (debug)
+        run: |
+          java -version || true
+          python3 --version
+          pip show buildozer || true
+
+      - name: Run Buildozer (debug)
+        run: |
+          # show project files
+          ls -la
+          buildozer android debug || true
+        # increase timeout if needed
+        timeout-minutes: 120
+
+      - name: Collect APK artifact
+        run: |
+          mkdir -p apk_out
+          if [ -d "bin" ]; then cp -v bin/*.apk apk_out/ || true; fi
+          if [ -d "buildozer/bin" ]; then cp -v buildozer/bin/*.apk apk_out/ || true; fi
+          ls -la apk_out || true
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
