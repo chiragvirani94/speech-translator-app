@@ -1,7 +1,7 @@
-name: Build Android APK (Buildozer)
+name: Build Android APK (Buildozer - docker)
 
 on:
-  workflow_dispatch:   # lets you run manually
+  workflow_dispatch:
   push:
     branches: [ "main" ]
 
@@ -9,22 +9,19 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Run Buildozer in Docker
-        uses: addnab/docker-run-action@v3
+      - name: Build with Buildozer (Docker container)
+        uses: docker://kivy/buildozer:python3
         with:
-          image: kivy/buildozer:latest
-          options: --privileged
-          run: |
-            pip install --upgrade buildozer cython
-            buildozer android clean || true
-            buildozer -v android debug
-            mkdir -p /github/workspace/apk_out
-            cp -v bin/*.apk /github/workspace/apk_out/ || true
+          entrypoint: /bin/sh
+          args: -c "pip install --upgrade buildozer cython && buildozer android clean || true && buildozer -v android debug || true && mkdir -p /github/workspace/apk_out && cp -v bin/*.apk /github/workspace/apk_out/ || true"
 
-      - name: Upload APK
+      - name: List produced files (debug)
+        run: ls -la apk_out || true
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: SpeechTranslator-APK
