@@ -1,4 +1,4 @@
-name: Build Android APK (Buildozer - native)
+name: Build Android APK (Buildozer - setup-android)
 
 on:
   workflow_dispatch:
@@ -10,38 +10,38 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: ${{ github.workspace }}/android-sdk
-      PATH: ${{ github.workspace }}/android-sdk/cmdline-tools/latest/bin:${{ github.workspace }}/android-sdk/platform-tools:${{ github.workspace }}/.local/bin:${{ github.workspace }}/.local/lib/python3.8/site-packages:$PATH
+      PATH: ${{ github.workspace }}/android-sdk/platform-tools:${{ github.workspace }}/.local/bin:$PATH
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install system packages
+      - name: Setup Java 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      - name: Install apt packages (including tar)
         run: |
           sudo apt update
           sudo apt install -y --no-install-recommends \
-            git python3-pip python3-setuptools python3-venv openjdk-11-jdk \
-            unzip zip wget tar libncurses5 libncurses5-dev libffi-dev libssl-dev \
-            libsqlite3-dev build-essential liblzma-dev libbz2-dev
+            git python3-pip python3-setuptools python3-venv unzip zip wget tar \
+            build-essential libncurses5 libncurses5-dev libffi-dev libssl-dev \
+            libsqlite3-dev liblzma-dev libbz2-dev
+
+      - name: Setup Android SDK / Build Tools / NDK
+        uses: r0adkll/setup-android@v2
+        with:
+          api-levels: '33'
+          build-tools: '33.0.2'
+          ndk: '25.2.9519653'
+          components: 'platform-tools'
 
       - name: Install pip tools
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip install --upgrade cython buildozer
-
-      - name: Create local android sdk folder
-        run: |
-          mkdir -p android-sdk
-          # Download and install Android SDK command-line tools
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline.zip
-          unzip -q cmdline.zip -d android-sdk/cmdline-tools
-          mv android-sdk/cmdline-tools android-sdk/cmdline-tools/latest
-          rm cmdline.zip
-          yes | android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=${{ github.workspace }}/android-sdk "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653" "cmake;3.22.1" || true
-
-      - name: Ensure JAVA_HOME and PATH
-        run: |
-          echo "JAVA_HOME=$(dirname $(dirname $(readlink -f $(which javac))))" >> $GITHUB_ENV
-          echo "ANDROID_HOME=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
 
       - name: Show versions (debug)
         run: |
@@ -52,7 +52,7 @@ jobs:
       - name: Run Buildozer (debug)
         run: |
           ls -la
-          buildozer android debug || true
+          buildozer android debug
         timeout-minutes: 120
 
       - name: Collect APK artifact
